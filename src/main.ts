@@ -6,6 +6,9 @@ import { Preloader } from './scenes/Preloader';
 import { MainMenu } from './scenes/MainMenu';
 import { Game } from './scenes/Game';
 import { GameOver } from './scenes/GameOver';
+import { Shop } from './scenes/Shop';
+import { Areas } from './scenes/Areas';
+import { Wheel } from './scenes/Wheel';
 
 // The SDK script tag is `async`, so wait (briefly) for it before booting the
 // game. If it never arrives we proceed anyway and run as a normal web game.
@@ -44,7 +47,7 @@ void waitForSdk().then(() => {
                 antialias: true,
                 roundPixels: false
             },
-            scene: [Boot, Preloader, MainMenu, Game, GameOver]
+            scene: [Boot, Preloader, MainMenu, Game, GameOver, Shop, Areas, Wheel]
         });
     });
 });

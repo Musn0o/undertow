@@ -1,16 +1,7 @@
 import Phaser from 'phaser';
 import { YouTubePlayables } from '../playables/YouTubePlayables';
+import { Profile } from '../systems/Profile';
 import { sfx } from '../systems/Sfx';
-
-const readNumber = (data: unknown, key: string, fallback: number): number => {
-    if (data && typeof data === 'object' && key in data) {
-        const value = (data as Record<string, unknown>)[key];
-        if (typeof value === 'number' && Number.isFinite(value)) {
-            return value;
-        }
-    }
-    return fallback;
-};
 
 export class Boot extends Phaser.Scene {
     constructor() {
@@ -18,31 +9,20 @@ export class Boot extends Phaser.Scene {
     }
 
     async create(): Promise<void> {
-        // Load cloud save. loadData only resolves here, so it is safe to call
-        // saveData later (required ordering for the Playables integration).
-        let data: Record<string, unknown> | null = null;
+        // Load the player profile (cloud save inside Playables, localStorage
+        // outside). loadData must resolve before saveData is ever called.
         try {
-            data = await YouTubePlayables.withTimeout(
-                YouTubePlayables.loadData<Record<string, unknown>>(),
-                1500
-            );
+            await Profile.load();
         } catch (error) {
-            console.warn('[Boot] No cloud save available.', error);
+            console.warn('[Boot] Profile load failed.', error);
         }
 
-        this.registry.set('bestScore', readNumber(data, 'bestScore', 0));
-        this.registry.set('totalGames', readNumber(data, 'totalGames', 0));
-
         const audioEnabled = YouTubePlayables.isAudioEnabled();
-        this.registry.set('audioEnabled', audioEnabled);
         sfx.setEnabled(audioEnabled);
 
-        // Save progress on pause; the platform can pause at any time.
+        // Persist progress on pause; the platform can pause at any time.
         YouTubePlayables.setOnPause(() => {
-            void YouTubePlayables.saveData({
-                bestScore: this.registry.get('bestScore') ?? 0,
-                totalGames: this.registry.get('totalGames') ?? 0
-            });
+            Profile.save();
             this.game.pause();
         });
 
@@ -52,7 +32,6 @@ export class Boot extends Phaser.Scene {
 
         // Obey YouTube's mute/unmute command instantly.
         YouTubePlayables.setAudioChangeCallback((enabled: boolean) => {
-            this.registry.set('audioEnabled', enabled);
             sfx.setEnabled(enabled);
         });
 

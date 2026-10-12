@@ -1,14 +1,26 @@
 import Phaser from 'phaser';
-import { GAME } from '../config';
+import { GAME, getBiome, getSkin, type BiomeDef, type SkinDef } from '../config';
+import { Profile } from '../systems/Profile';
 import { sfx } from '../systems/Sfx';
 
 const clamp = Phaser.Math.Clamp;
 const lerp = Phaser.Math.Linear;
 
+interface AwardedTotals {
+    score: number;
+    distance: number;
+    pearls: number;
+    bubbles: number;
+}
+
 interface GameInitData {
     revive?: boolean;
     score?: number;
     lives?: number;
+    distance?: number;
+    pearls?: number;
+    bubbles?: number;
+    awarded?: AwardedTotals;
 }
 
 interface Gate {
@@ -44,16 +56,18 @@ interface Decor {
 /**
  * UNDERTOW core loop.
  *
- * An endless underwater run. Hold (pointer / Space / ArrowUp) to swim up,
- * release to sink. Horizontal current bands push you up or down, so you must
- * read the water while weaving through coral gates and drifting jellies,
- * grabbing air bubbles before your oxygen runs out and pearls for points.
+ * Hold to swim up, release to sink. Current bands push you up or down; weave
+ * through coral gates and jellies, grab air bubbles and pearls. The equipped
+ * skin and selected biome change the look and the feel of the run.
  */
 export class Game extends Phaser.Scene {
     private width = 0;
     private height = 0;
     private surface = 0;
     private floor = 0;
+
+    private biome!: BiomeDef;
+    private skin!: SkinDef;
 
     private swimmer!: Phaser.GameObjects.Container;
     private tail!: Phaser.GameObjects.Triangle;
@@ -74,6 +88,7 @@ export class Game extends Phaser.Scene {
 
     private bands: number[] = [];
     private bandTimer = 0;
+    private trailTimer = 0;
 
     private score = 0;
     private lives: number = GAME.startingLives;
@@ -81,26 +96,40 @@ export class Game extends Phaser.Scene {
     private elapsed = 0;
     private worldSpeed: number = GAME.speedStart;
     private distanceAccum = 0;
+    private pixels = 0;
+    private pearls = 0;
+    private bubbles = 0;
     private nextSpawn = 0;
     private patternCount = 0;
     private invuln = 0;
     private roundActive = false;
+    private awarded: AwardedTotals = { score: 0, distance: 0, pearls: 0, bubbles: 0 };
 
     private scoreText!: Phaser.GameObjects.Text;
     private livesText!: Phaser.GameObjects.Text;
     private hintText!: Phaser.GameObjects.Text;
+    private biomeText!: Phaser.GameObjects.Text;
 
     constructor() {
         super('Game');
     }
 
     init(data: GameInitData = {}): void {
-        this.score = data.revive ? data.score ?? 0 : 0;
-        this.lives = data.revive ? data.lives ?? GAME.startingLives : GAME.startingLives;
+        const revive = data.revive === true;
+        this.score = revive ? data.score ?? 0 : 0;
+        this.lives = revive ? data.lives ?? GAME.startingLives : GAME.startingLives;
+        this.pixels = revive ? (data.distance ?? 0) * 60 : 0;
+        this.pearls = revive ? data.pearls ?? 0 : 0;
+        this.bubbles = revive ? data.bubbles ?? 0 : 0;
+        this.awarded = revive && data.awarded
+            ? data.awarded
+            : { score: this.score, distance: Math.floor(this.pixels / 60), pearls: this.pearls, bubbles: this.bubbles };
     }
 
     create(): void {
-        // Reset all per-run state (Phaser reuses the scene instance).
+        this.biome = getBiome(Profile.selectedBiome);
+        this.skin = getSkin(Profile.equippedSkin);
+
         this.roundActive = true;
         this.elapsed = 0;
         this.oxygen = 100;
@@ -111,6 +140,7 @@ export class Game extends Phaser.Scene {
         this.swimmerY = 0;
         this.invuln = 0;
         this.patternCount = 0;
+        this.trailTimer = 0;
         this.nextSpawn = 460;
         this.bandTimer = Phaser.Math.FloatBetween(4, 6);
         this.decor = [];
@@ -118,7 +148,7 @@ export class Game extends Phaser.Scene {
         this.jellies = [];
         this.pickups = [];
 
-        this.cameras.main.setBackgroundColor(GAME.deepColor);
+        this.cameras.main.setBackgroundColor(this.biome.deep);
 
         this.bg = this.add.graphics().setDepth(0);
         this.currentGfx = this.add.graphics().setDepth(2);
@@ -161,6 +191,17 @@ export class Game extends Phaser.Scene {
             .setDepth(21)
             .setOrigin(0.5);
 
+        this.biomeText = this.add
+            .text(0, 0, this.biome.name.toUpperCase(), {
+                fontFamily: 'Arial Black, Arial, sans-serif',
+                fontSize: '26px',
+                color: '#ffffff',
+                stroke: '#000000',
+                strokeThickness: 5
+            })
+            .setDepth(21)
+            .setOrigin(0.5);
+
         this.layout();
         this.buildDecor();
 
@@ -179,6 +220,9 @@ export class Game extends Phaser.Scene {
             this.scale.off('resize', this.handleResize, this);
         });
 
+        this.time.delayedCall(1600, () => {
+            this.tweens.add({ targets: this.biomeText, alpha: 0, duration: 700 });
+        });
         this.time.delayedCall(5000, () => {
             this.tweens.add({ targets: this.hintText, alpha: 0, duration: 600 });
         });
@@ -192,7 +236,8 @@ export class Game extends Phaser.Scene {
         }
         const dt = Math.min(deltaMs, 50) / 1000;
         this.elapsed += dt;
-        this.worldSpeed = lerp(GAME.speedStart, GAME.speedMax, this.difficulty());
+        const diff = this.difficulty();
+        this.worldSpeed = lerp(GAME.speedStart, GAME.speedMax, diff) * this.biome.speedMul;
 
         this.updateBands(dt);
         this.updateSwim(dt);
@@ -220,9 +265,9 @@ export class Game extends Phaser.Scene {
     private buildSwimmer(): void {
         this.swimmer = this.add.container(0, 0).setDepth(6);
 
-        this.tail = this.add.triangle(-22, 0, 0, -13, 0, 13, -22, 0, GAME.swimmerFin, 0.9);
-        const body = this.add.ellipse(0, 0, 46, 30, GAME.swimmer);
-        const fin = this.add.triangle(0, -14, -10, 6, 10, 6, 0, -12, GAME.swimmerFin, 0.85);
+        this.tail = this.add.triangle(-22, 0, 0, -13, 0, 13, -22, 0, this.skin.fin, 0.9);
+        const body = this.add.ellipse(0, 0, 46, 30, this.skin.body);
+        const fin = this.add.triangle(0, -14, -10, 6, 10, 6, 0, -12, this.skin.fin, 0.85);
         const eye = this.add.circle(12, -4, 4, 0x05121f);
         const eyeShine = this.add.circle(13.5, -5.5, 1.6, 0xffffff);
 
@@ -232,9 +277,9 @@ export class Game extends Phaser.Scene {
     private buildDecor(): void {
         for (let i = 0; i < 26; i++) {
             const r = Phaser.Math.Between(2, 6);
-            const x = Phaser.Math.Between(0, this.width || 400);
-            const y = Phaser.Math.Between(0, this.height || 800);
-            const obj = this.add.circle(x, y, r, GAME.bubble, 0.18).setDepth(1);
+            const x = Phaser.Math.Between(0, this.width);
+            const y = Phaser.Math.Between(0, this.height);
+            const obj = this.add.circle(x, y, r, this.biome.decor, 0.18).setDepth(1);
             this.decor.push({ obj, x, y, r, speed: Phaser.Math.Between(20, 60) });
         }
     }
@@ -244,7 +289,7 @@ export class Game extends Phaser.Scene {
     private updateSwim(dt: number): void {
         const current = this.getBandAccel(this.swimmerY);
         const thrust = this.holding ? GAME.thrust : 0;
-        let accel = GAME.gravity - thrust - current;
+        const accel = GAME.gravity - thrust - current;
 
         this.vy += accel * dt;
         this.vy *= 1 - clamp(GAME.drag * dt, 0, 0.9);
@@ -267,8 +312,23 @@ export class Game extends Phaser.Scene {
         this.swimmer.rotation = clamp(this.vy / 1100, -0.5, 0.5);
         this.tail.setRotation(Math.sin(this.elapsed * 16) * 0.45);
         this.swimmer.setAlpha(this.invuln > 0 ? (Math.floor(this.elapsed * 14) % 2 === 0 ? 1 : 0.35) : 1);
+
         if (this.invuln > 0) {
             this.invuln -= dt;
+        }
+
+        this.trailTimer -= dt;
+        if (this.trailTimer <= 0 && (this.holding || Math.abs(this.vy) > 220)) {
+            this.trailTimer = 0.07;
+            const bubble = this.add.circle(this.swimmerX - 18, this.swimmerY, 5, this.skin.trail, 0.5).setDepth(5);
+            this.tweens.add({
+                targets: bubble,
+                x: bubble.x - 60,
+                alpha: 0,
+                scale: 0.3,
+                duration: 500,
+                onComplete: () => bubble.destroy()
+            });
         }
     }
 
@@ -276,7 +336,7 @@ export class Game extends Phaser.Scene {
         const span = Math.max(1, this.floor - this.surface);
         const t = clamp((y - this.surface) / span, 0, 0.999);
         const idx = Math.min(this.bands.length - 1, Math.floor(t * this.bands.length));
-        return this.bands[idx] * GAME.currentAccel;
+        return this.bands[idx] * GAME.currentAccel * this.biome.currentMul;
     }
 
     private updateBands(dt: number): void {
@@ -327,15 +387,15 @@ export class Game extends Phaser.Scene {
 
         if (gateTop > 4) {
             top = this.add
-                .rectangle(x, gateTop / 2, w, gateTop, GAME.rock)
-                .setStrokeStyle(2, GAME.rockEdge, 0.9)
+                .rectangle(x, gateTop / 2, w, gateTop, this.biome.rock)
+                .setStrokeStyle(2, this.biome.rockEdge, 0.9)
                 .setDepth(4);
         }
         if (gateBottom < this.height - 4) {
             const h = this.height - gateBottom;
             bottom = this.add
-                .rectangle(x, gateBottom + h / 2, w, h, GAME.rock)
-                .setStrokeStyle(2, GAME.rockEdge, 0.9)
+                .rectangle(x, gateBottom + h / 2, w, h, this.biome.rock)
+                .setStrokeStyle(2, this.biome.rockEdge, 0.9)
                 .setDepth(4);
         }
 
@@ -349,8 +409,8 @@ export class Game extends Phaser.Scene {
         const x = this.width + r + 24;
 
         const obj = this.add
-            .ellipse(x, y, r * 2, r * 1.7, GAME.jelly, 0.55)
-            .setStrokeStyle(3, GAME.jellyEdge, 0.9)
+            .ellipse(x, y, r * 2, r * 1.7, this.biome.jelly, 0.55)
+            .setStrokeStyle(3, this.biome.jellyEdge, 0.9)
             .setDepth(4);
         this.tweens.add({
             targets: obj,
@@ -361,7 +421,7 @@ export class Game extends Phaser.Scene {
             repeat: -1
         });
 
-        const drift = Phaser.Math.Between(-1, 1) * (50 + 90 * d);
+        const drift = Phaser.Math.Between(-1, 1) * (50 + 90 * d) * this.biome.jellyMul;
         this.jellies.push({ obj, x, y, r, drift });
     }
 
@@ -392,6 +452,7 @@ export class Game extends Phaser.Scene {
 
     private updateEntities(dt: number): void {
         const move = this.worldSpeed * dt;
+        this.pixels += move;
 
         for (let i = this.gates.length - 1; i >= 0; i--) {
             const g = this.gates[i];
@@ -450,7 +511,6 @@ export class Game extends Phaser.Scene {
             b.obj.setPosition(b.x, b.y);
         }
 
-        // Distance score.
         this.distanceAccum += move;
         while (this.distanceAccum >= 60) {
             this.distanceAccum -= 60;
@@ -487,9 +547,11 @@ export class Game extends Phaser.Scene {
             if (Phaser.Math.Distance.Between(sx, sy, p.x, p.y) < sr + p.r) {
                 if (p.kind === 'bubble') {
                     this.oxygen = Math.min(100, this.oxygen + GAME.bubbleOxygen);
+                    this.bubbles++;
                     sfx.bubble();
                 } else {
                     this.score += 5;
+                    this.pearls++;
                     sfx.success();
                 }
                 this.popAt(p.x, p.y, p.kind === 'pearl' ? GAME.pearl : GAME.bubble);
@@ -516,7 +578,13 @@ export class Game extends Phaser.Scene {
         sfx.gameOver();
         this.swimmer.setAlpha(0);
         this.time.delayedCall(700, () => {
-            this.scene.start('GameOver', { score: this.score });
+            this.scene.start('GameOver', {
+                score: this.score,
+                distance: Math.floor(this.pixels / 60),
+                pearls: this.pearls,
+                bubbles: this.bubbles,
+                awarded: this.awarded
+            });
         });
     }
 
@@ -526,7 +594,7 @@ export class Game extends Phaser.Scene {
         if (this.invuln > 0) {
             return;
         }
-        this.oxygen -= (GAME.oxygenDrain + 6 * this.difficulty()) * dt;
+        this.oxygen -= (GAME.oxygenDrain + 6 * this.difficulty()) * this.biome.oxygenMul * dt;
         if (this.oxygen <= 0) {
             this.oxygen = 0;
             this.hit();
@@ -564,7 +632,7 @@ export class Game extends Phaser.Scene {
             const top = this.surface + i * bandH;
             const dir = this.bands[i];
             const up = dir > 0;
-            const color = up ? GAME.upCurrent : GAME.downCurrent;
+            const color = up ? this.biome.upCurrent : this.biome.downCurrent;
 
             this.currentGfx.fillStyle(color, 0.06);
             this.currentGfx.fillRect(0, top, this.width, bandH);
@@ -591,7 +659,7 @@ export class Game extends Phaser.Scene {
 
     private renderBackground(): void {
         this.bg.clear();
-        this.bg.fillGradientStyle(GAME.surfaceColor, GAME.surfaceColor, GAME.deepColor, GAME.deepColor, 1);
+        this.bg.fillGradientStyle(this.biome.surface, this.biome.surface, this.biome.deep, this.biome.deep, 1);
         this.bg.fillRect(0, 0, this.width, this.height);
     }
 
@@ -630,6 +698,7 @@ export class Game extends Phaser.Scene {
         this.scoreText.setPosition(22, 16);
         this.livesText.setPosition(this.width - 22, 18);
         this.hintText.setPosition(this.width / 2, this.height - 22);
+        this.biomeText.setPosition(this.width / 2, this.height * 0.3);
 
         this.swimmer.setScale(clamp(this.height / 900, 0.75, 1.15));
     }
