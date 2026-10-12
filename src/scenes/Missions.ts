@@ -4,6 +4,7 @@ import { Profile } from '../systems/Profile';
 import { sfx } from '../systems/Sfx';
 import { UIButton } from '../ui/Button';
 import { makeCoin } from '../ui/icons';
+import { makePanel } from '../ui/panel';
 
 export class Missions extends Phaser.Scene {
     private rows!: Phaser.GameObjects.Container;
@@ -86,10 +87,10 @@ export class Missions extends Phaser.Scene {
     private rebuild(w: number): void {
         this.rows.removeAll(true);
 
-        const rowW = Math.min(w - 36, 480);
-        const rowH = 86;
+        const rowW = Math.min(w - 32, 480);
+        const rowH = 98;
         const gap = 12;
-        const startY = 128;
+        const startY = 126;
         const cx = w / 2;
 
         Profile.getMissions().forEach((mission, index) => {
@@ -110,11 +111,11 @@ export class Missions extends Phaser.Scene {
 
         const row = this.add.container(x, y);
         const border = claimed ? 0x2ec4b6 : complete ? GAME.colors[2] : 0x39406b;
-        row.add(this.add.rectangle(0, 0, w, h, 0x0d1730, 1).setStrokeStyle(3, border, 0.95));
+        row.add(makePanel(this, w, h, 0x0d1730, border, 0.95, 16));
 
         row.add(
             this.add
-                .text(-w / 2 + 16, -h / 2 + 24, def.label, {
+                .text(-w / 2 + 16, -h / 2 + 22, def.label, {
                     fontFamily: 'Arial Black, Arial, sans-serif',
                     fontSize: '17px',
                     color: claimed ? '#8fb9b1' : '#ffffff'
@@ -122,10 +123,21 @@ export class Missions extends Phaser.Scene {
                 .setOrigin(0, 0.5)
         );
 
-        // Progress bar.
-        const barW = w - 32 - 120;
+        // Reward, top-right.
+        const reward = this.add
+            .text(w / 2 - 16, -h / 2 + 22, `${def.reward}`, {
+                fontFamily: 'Arial Black, Arial, sans-serif',
+                fontSize: '17px',
+                color: '#ffe3a3'
+            })
+            .setOrigin(1, 0.5);
+        const coin = makeCoin(this, w / 2 - 16 - reward.width - 12, -h / 2 + 22, 10);
+        row.add([coin, reward]);
+
+        // Full-width progress bar in the middle.
+        const barW = w - 32;
         const barX = -w / 2 + 16;
-        const barY = -h / 2 + 52;
+        const barY = -8;
         const bar = this.add.graphics();
         bar.fillStyle(0x000000, 0.35);
         bar.fillRoundedRect(barX, barY, barW, 12, 6);
@@ -133,54 +145,44 @@ export class Missions extends Phaser.Scene {
         bar.fillRoundedRect(barX, barY, Math.max(2, barW * Math.min(1, progress / def.target)), 12, 6);
         row.add(bar);
 
+        // Progress count, bottom-left.
         row.add(
             this.add
-                .text(barX + barW + 10, barY + 6, `${progress}/${def.target}`, {
+                .text(-w / 2 + 16, h / 2 - 22, `${progress}/${def.target}`, {
                     fontFamily: 'Arial, sans-serif',
-                    fontSize: '13px',
+                    fontSize: '14px',
                     color: '#9aa4c7'
                 })
                 .setOrigin(0, 0.5)
         );
 
-        // Reward.
-        const coin = makeCoin(this, w / 2 - 84, -h / 2 + 24, 10);
-        const reward = this.add
-            .text(w / 2 - 70, -h / 2 + 24, `${def.reward}`, {
-                fontFamily: 'Arial Black, Arial, sans-serif',
-                fontSize: '17px',
-                color: '#ffe3a3'
-            })
-            .setOrigin(0, 0.5);
-        row.add([coin, reward]);
-
-        // Status / claim.
+        // Status / claim, bottom-right.
         if (claimed) {
             row.add(
                 this.add
-                    .text(w / 2 - 16, h / 2 - 20, 'CLAIMED', {
+                    .text(w / 2 - 16, h / 2 - 22, 'CLAIMED', {
                         fontFamily: 'Arial Black, Arial, sans-serif',
-                        fontSize: '16px',
+                        fontSize: '15px',
                         color: '#2ec4b6'
                     })
                     .setOrigin(1, 0.5)
             );
         } else if (complete) {
-            const claim = new UIButton(this, w / 2 - 62, h / 2 - 20, 'CLAIM', GAME.colors[2], () => {
+            const claim = new UIButton(this, w / 2 - 58, h / 2 - 22, 'CLAIM', GAME.colors[2], () => {
                 const gained = Profile.claimMission(def.id);
                 if (gained > 0) {
                     sfx.claim();
                     this.coinText.setText(`${Profile.profile.coins}`);
                     this.layout();
                 }
-            }, { width: 96, height: 34, fontSize: 15 });
+            }, { width: 96, height: 34, fontSize: 15, radius: 14 });
             row.add(claim);
         } else {
             row.add(
                 this.add
-                    .text(w / 2 - 16, h / 2 - 20, 'IN PROGRESS', {
+                    .text(w / 2 - 16, h / 2 - 22, 'IN PROGRESS', {
                         fontFamily: 'Arial, sans-serif',
-                        fontSize: '13px',
+                        fontSize: '14px',
                         color: '#6b7396'
                     })
                     .setOrigin(1, 0.5)

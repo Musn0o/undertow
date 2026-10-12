@@ -283,7 +283,6 @@ class ProfileStore {
         this.bumpMetric('distance', Math.round(stats.distance));
         this.bumpMetric('pearls', stats.pearls);
         this.bumpMetric('bubbles', stats.bubbles);
-        this.bumpMetric('runs', 1);
         this.bumpMetric('bestScore', Math.round(stats.score), true);
         this.updateMissionProgress();
 
@@ -300,6 +299,18 @@ class ProfileStore {
 
     addCoins(amount: number): void {
         this.data.coins = Math.max(0, this.data.coins + Math.round(amount));
+        this.save();
+        this.emit();
+    }
+
+    /**
+     * Call once when a genuinely new run starts (not on a rewarded-ad
+     * continue). Counts toward the "play N runs" daily mission.
+     */
+    beginRun(): void {
+        this.refreshDaily();
+        this.bumpMetric('runs', 1);
+        this.updateMissionProgress();
         this.save();
         this.emit();
     }
@@ -433,6 +444,14 @@ class ProfileStore {
 
     hasClaimableMissions(): boolean {
         return this.data.dailyMissions.some((m) => !m.claimed && m.progress >= m.target);
+    }
+
+    claimableMissionCount(): number {
+        return this.data.dailyMissions.filter((m) => !m.claimed && m.progress >= m.target).length;
+    }
+
+    incompleteMissionCount(): number {
+        return this.data.dailyMissions.filter((m) => m.progress < m.target).length;
     }
 
     claimMission(id: string): number {

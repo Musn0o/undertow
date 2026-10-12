@@ -3,6 +3,7 @@ import { GAME, BIOMES, type BiomeDef } from '../config';
 import { Profile } from '../systems/Profile';
 import { sfx } from '../systems/Sfx';
 import { UIButton } from '../ui/Button';
+import { makePanel } from '../ui/panel';
 
 export class Areas extends Phaser.Scene {
     private cards!: Phaser.GameObjects.Container;
@@ -163,8 +164,9 @@ export class Areas extends Phaser.Scene {
 
         const card = this.add.container(x, y);
         const border = selected ? GAME.colors[0] : 0x39406b;
-        const bg = this.add.rectangle(0, 0, w, h, 0x0d1730, 1).setStrokeStyle(3, border, 0.95);
-        card.add(bg);
+        card.add(makePanel(this, w, h, 0x0d1730, border, 0.95, 16));
+        const hit = this.add.rectangle(0, 0, w, h, 0xffffff, 0);
+        card.add(hit);
 
         const swatchW = w - 28;
         const swatchH = h * 0.42;
@@ -213,8 +215,8 @@ export class Areas extends Phaser.Scene {
                 .setOrigin(0.5)
         );
 
-        bg.setInteractive({ useHandCursor: true });
-        bg.on('pointerdown', () => {
+        hit.setInteractive({ useHandCursor: true });
+        hit.on('pointerdown', () => {
             if (selected) {
                 return;
             }

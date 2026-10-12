@@ -4,6 +4,7 @@ import { Profile } from '../systems/Profile';
 import { sfx } from '../systems/Sfx';
 import { UIButton } from '../ui/Button';
 import { makeCoin, makeSwimmerPreview } from '../ui/icons';
+import { makePanel } from '../ui/panel';
 
 export class Shop extends Phaser.Scene {
     private cards!: Phaser.GameObjects.Container;
@@ -176,8 +177,9 @@ export class Shop extends Phaser.Scene {
         const card = this.add.container(x, y);
 
         const border = equipped ? GAME.colors[0] : 0x39406b;
-        const bg = this.add.rectangle(0, 0, w, h, 0x0d1730, 1).setStrokeStyle(3, border, 0.95);
-        card.add(bg);
+        card.add(makePanel(this, w, h, 0x0d1730, border, 0.95, 16));
+        const hit = this.add.rectangle(0, 0, w, h, 0xffffff, 0);
+        card.add(hit);
 
         const preview = makeSwimmerPreview(this, 0, -h * 0.22, Math.min(w / 150, 1), skin.body, skin.fin);
         card.add(preview);
@@ -227,8 +229,8 @@ export class Shop extends Phaser.Scene {
             card.add([coin, price]);
         }
 
-        bg.setInteractive({ useHandCursor: true });
-        bg.on('pointerdown', () => {
+        hit.setInteractive({ useHandCursor: true });
+        hit.on('pointerdown', () => {
             if (equipped) {
                 return;
             }

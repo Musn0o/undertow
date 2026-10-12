@@ -110,6 +110,7 @@ export class Game extends Phaser.Scene {
     private awarded: AwardedTotals = { score: 0, distance: 0, pearls: 0, bubbles: 0 };
     private nearCombo = 0;
     private slowmo = 0;
+    private isRevive = false;
 
     private scoreText!: Phaser.GameObjects.Text;
     private livesText!: Phaser.GameObjects.Text;
@@ -122,6 +123,7 @@ export class Game extends Phaser.Scene {
 
     init(data: GameInitData = {}): void {
         const revive = data.revive === true;
+        this.isRevive = revive;
         this.score = revive ? data.score ?? 0 : 0;
         this.lives = revive ? data.lives ?? GAME.startingLives : GAME.startingLives;
         this.pixels = revive ? (data.distance ?? 0) * 60 : 0;
@@ -155,6 +157,11 @@ export class Game extends Phaser.Scene {
         this.gates = [];
         this.jellies = [];
         this.pickups = [];
+
+        // A rewarded-ad continue is the same run, so only count a brand new run.
+        if (!this.isRevive) {
+            Profile.beginRun();
+        }
 
         this.cameras.main.setBackgroundColor(this.biome.deep);
 
