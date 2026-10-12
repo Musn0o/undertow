@@ -718,9 +718,18 @@ export class Game extends Phaser.Scene {
     }
 
     private renderBackground(): void {
+        // Banded vertical gradient. Works on both the Canvas and WebGL
+        // renderers (Graphics.fillGradientStyle is WebGL-only).
         this.bg.clear();
-        this.bg.fillGradientStyle(this.biome.surface, this.biome.surface, this.biome.deep, this.biome.deep, 1);
-        this.bg.fillRect(0, 0, this.width, this.height);
+        const bands = 24;
+        const bandH = this.height / bands + 1;
+        const top = Phaser.Display.Color.ValueToColor(this.biome.surface);
+        const bottom = Phaser.Display.Color.ValueToColor(this.biome.deep);
+        for (let i = 0; i < bands; i++) {
+            const mix = Phaser.Display.Color.Interpolate.ColorWithColor(top, bottom, bands - 1, i);
+            this.bg.fillStyle(Phaser.Display.Color.GetColor(mix.r, mix.g, mix.b), 1);
+            this.bg.fillRect(0, i * bandH, this.width, bandH);
+        }
     }
 
     private popAt(x: number, y: number, color: number): void {
