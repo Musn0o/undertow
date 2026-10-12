@@ -32,31 +32,13 @@ const waitForSdk = (): Promise<void> =>
         poll();
     });
 
-// Some embeds (e.g. the Playables Test Suite iframe) lay the game out a frame
-// or two after load. Booting while the container is 0x0 makes Phaser's WebGL
-// renderer fall over, so wait for a real size first.
-const waitForLayout = (): Promise<void> =>
-    new Promise((resolve) => {
-        const parent = document.getElementById('gameParent');
-        const check = (): void => {
-            const w = parent ? parent.clientWidth : window.innerWidth;
-            const h = parent ? parent.clientHeight : window.innerHeight;
-            if (w > 0 && h > 0) {
-                resolve();
-                return;
-            }
-            window.requestAnimationFrame(check);
-        };
-        check();
-    });
-
-void Promise.all([waitForSdk(), waitForLayout()]).then(() => {
+void waitForSdk().then(() => {
     YouTubePlayables.boot(() => {
-        new Phaser.Game({
+        const game = new Phaser.Game({
             // Canvas renderer: WebGL framebuffer creation fails inside some
-            // sandboxed iframes (e.g. the Playables Test Suite on Firefox).
-            // Canvas is a supported Playables rendering API and is fully
-            // compatible with our 2D game.
+            // sandboxed iframes (e.g. the Playables Test Suite on Firefox) and
+            // when the container is still 0x0. Canvas is a supported Playables
+            // rendering API and is fully compatible with our 2D game.
             type: Phaser.CANVAS,
             parent: 'gameParent',
             backgroundColor: GAME.background,
@@ -72,5 +54,28 @@ void Promise.all([waitForSdk(), waitForLayout()]).then(() => {
             },
             scene: [Boot, Preloader, MainMenu, Game, GameOver, Shop, Areas, Wheel, Missions]
         });
+
+        // Some embeds (e.g. the Playables Test Suite) keep the game hidden at
+        // 0x0 until it reports ready, and don't fire a usable resize event when
+        // they reveal it. So never block boot on size; just make sure we adopt
+        // the real size as soon as it appears.
+        const parent = document.getElementById('gameParent');
+        const syncSize = (): void => {
+            if (!parent) {
+                return;
+            }
+            const w = parent.clientWidth;
+            const h = parent.clientHeight;
+            if (w > 0 && h > 0 && (game.scale.width !== w || game.scale.height !== h)) {
+                game.scale.resize(w, h);
+            }
+        };
+
+        if (parent) {
+            if (typeof ResizeObserver !== 'undefined') {
+                new ResizeObserver(syncSize).observe(parent);
+            }
+            window.setInterval(syncSize, 300);
+        }
     });
 });
