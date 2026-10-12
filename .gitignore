@@ -25,3 +25,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Sibling game repos live inside this folder but are their own repositories.
+overclock/
