@@ -8,12 +8,11 @@
     <link rel="stylesheet" href="/style.css">
     <title>Undertow</title>
     <!--
-        The YouTube Playables SDK must load before any game code.
-        It is loaded `async` so a slow/blocked youtube.com request can NEVER
-        hang the page while the parser waits on it; main.ts waits for the SDK
-        (with a timeout) before booting Phaser. On YouTube it resolves instantly.
+        The YouTube Playables SDK MUST load before any game code, so it is a
+        plain blocking script placed before the game module (the documented
+        pattern). Do not add async/defer here.
     -->
-    <script src="https://www.youtube.com/game_api/v1" async></script>
+    <script src="https://www.youtube.com/game_api/v1"></script>
 </head>
 
 <body>
