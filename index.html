@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#0b1026" />
+    <link rel="stylesheet" href="/style.css">
+    <title>Undertow</title>
+    <!--
+        The YouTube Playables SDK must load before any game code.
+        It is loaded `async` so a slow/blocked youtube.com request can NEVER
+        hang the page while the parser waits on it; main.ts waits for the SDK
+        (with a timeout) before booting Phaser. On YouTube it resolves instantly.
+    -->
+    <script src="https://www.youtube.com/game_api/v1" async></script>
+</head>
+
+<body>
+
+    <div id="gameParent"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+
+</body>
+</html>
