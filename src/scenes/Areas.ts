@@ -10,12 +10,19 @@ export class Areas extends Phaser.Scene {
     private levelText!: Phaser.GameObjects.Text;
     private backButton!: UIButton;
     private statusText!: Phaser.GameObjects.Text;
+    private prevButton!: UIButton;
+    private nextButton!: UIButton;
+    private pageText!: Phaser.GameObjects.Text;
+
+    private page = 0;
+    private totalPages = 1;
 
     constructor() {
         super('Areas');
     }
 
     create(): void {
+        this.page = 0;
         this.cameras.main.setBackgroundColor(GAME.background);
 
         this.titleText = this.add
@@ -57,6 +64,21 @@ export class Areas extends Phaser.Scene {
 
         this.cards = this.add.container(0, 0).setDepth(3);
 
+        this.prevButton = new UIButton(this, 0, 0, '<', GAME.backgroundAccent, () => this.changePage(-1), {
+            width: 54,
+            height: 44,
+            fontSize: 22
+        });
+        this.nextButton = new UIButton(this, 0, 0, '>', GAME.backgroundAccent, () => this.changePage(1), {
+            width: 54,
+            height: 44,
+            fontSize: 22
+        });
+        this.pageText = this.add
+            .text(0, 0, '', { fontFamily: 'Arial Black, Arial, sans-serif', fontSize: '18px', color: '#9aa4c7' })
+            .setOrigin(0.5)
+            .setDepth(5);
+
         this.layout();
         this.scale.on('resize', this.layout, this);
         this.events.once('shutdown', () => this.scale.off('resize', this.layout, this));
@@ -69,6 +91,16 @@ export class Areas extends Phaser.Scene {
         this.scene.start('MainMenu');
     }
 
+    private changePage(delta: number): void {
+        const target = Phaser.Math.Clamp(this.page + delta, 0, this.totalPages - 1);
+        if (target === this.page) {
+            return;
+        }
+        sfx.click();
+        this.page = target;
+        this.layout();
+    }
+
     private flash(message: string): void {
         this.statusText.setText(message);
         this.statusText.setAlpha(1);
@@ -77,34 +109,52 @@ export class Areas extends Phaser.Scene {
 
     private layout(): void {
         const w = this.scale.width;
+        const h = this.scale.height;
         this.titleText.setPosition(w / 2, 44);
         this.backButton.setPosition(70, 40);
         this.levelText.setPosition(w - 90, 42);
         this.statusText.setPosition(w / 2, 88);
         this.levelText.setText(`LEVEL ${Profile.level}`);
-        this.rebuild(w);
+        this.rebuild(w, h);
     }
 
-    private rebuild(w: number): void {
+    private rebuild(w: number, h: number): void {
         this.cards.removeAll(true);
 
         const padding = 18;
         const gap = 14;
         const cols = w < 560 ? 2 : 3;
         const cardW = Math.min(210, (w - padding * 2 - gap * (cols - 1)) / cols);
-        const cardH = Math.min(cardW * 1.05, 200);
+        const cardH = Math.min(cardW * 1.05, 196);
+        const gridTop = 136;
+        const gridBottom = h - 78;
+        const rows = Math.max(1, Math.floor((gridBottom - gridTop + gap) / (cardH + gap)));
+        const perPage = Math.max(cols, cols * rows);
+        this.totalPages = Math.max(1, Math.ceil(BIOMES.length / perPage));
+        this.page = Phaser.Math.Clamp(this.page, 0, this.totalPages - 1);
+
+        const visible = BIOMES.slice(this.page * perPage, this.page * perPage + perPage);
         const gridW = cols * cardW + (cols - 1) * gap;
         const startX = (w - gridW) / 2 + cardW / 2;
-        const startY = 150;
+        const startY = gridTop + cardH / 2;
         const rowH = cardH + gap;
 
-        BIOMES.forEach((biome, index) => {
+        visible.forEach((biome, index) => {
             const col = index % cols;
             const row = Math.floor(index / cols);
             const x = startX + col * (cardW + gap);
-            const y = startY + row * rowH + cardH / 2;
+            const y = startY + row * rowH;
             this.cards.add(this.makeCard(x, y, cardW, cardH, biome));
         });
+
+        const showPager = this.totalPages > 1;
+        this.prevButton.setVisible(showPager).setEnabled(this.page > 0);
+        this.nextButton.setVisible(showPager).setEnabled(this.page < this.totalPages - 1);
+        this.pageText.setVisible(showPager);
+        this.pageText.setText(`${this.page + 1} / ${this.totalPages}`);
+        this.prevButton.setPosition(w / 2 - 80, h - 44);
+        this.nextButton.setPosition(w / 2 + 80, h - 44);
+        this.pageText.setPosition(w / 2, h - 44);
     }
 
     private makeCard(x: number, y: number, w: number, h: number, biome: BiomeDef): Phaser.GameObjects.Container {

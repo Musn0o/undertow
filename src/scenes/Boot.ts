@@ -35,6 +35,22 @@ export class Boot extends Phaser.Scene {
             sfx.setEnabled(enabled);
         });
 
+        // Dev-only deep links (open with #play / #shop / #areas / #wheel /
+        // #missions). These are ignored by YouTube (no hash there).
+        const routes: Record<string, string> = {
+            '#play': 'Game',
+            '#shop': 'Shop',
+            '#areas': 'Areas',
+            '#wheel': 'Wheel',
+            '#missions': 'Missions',
+            '#menu': 'MainMenu'
+        };
+        const target = routes[window.location.hash];
+        if (target) {
+            this.scene.start(target);
+            return;
+        }
+
         this.scene.start('Preloader');
     }
 }

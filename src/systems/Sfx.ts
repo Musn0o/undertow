@@ -80,6 +80,17 @@ export class Sfx {
         this.tone(880, 0.10, 'sine', 0.06);
     }
 
+    whoosh(): void {
+        this.tone(300, 0.14, 'triangle', 0, 0.7);
+        this.tone(180, 0.18, 'sine', 0.03, 0.5);
+    }
+
+    claim(): void {
+        this.tone(660, 0.09, 'square');
+        this.tone(990, 0.10, 'square', 0.07);
+        this.tone(1320, 0.12, 'square', 0.14);
+    }
+
     fail(): void {
         this.tone(180, 0.22, 'sawtooth', 0, 0.7);
     }

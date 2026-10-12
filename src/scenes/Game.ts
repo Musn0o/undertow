@@ -27,6 +27,9 @@ interface Gate {
     top: Phaser.GameObjects.Rectangle | null;
     bottom: Phaser.GameObjects.Rectangle | null;
     x: number;
+    gapTop: number;
+    gapBottom: number;
+    checked: boolean;
 }
 
 interface Jelly {
@@ -35,6 +38,7 @@ interface Jelly {
     y: number;
     r: number;
     drift: number;
+    checked: boolean;
 }
 
 interface Pickup {
@@ -104,6 +108,8 @@ export class Game extends Phaser.Scene {
     private invuln = 0;
     private roundActive = false;
     private awarded: AwardedTotals = { score: 0, distance: 0, pearls: 0, bubbles: 0 };
+    private nearCombo = 0;
+    private slowmo = 0;
 
     private scoreText!: Phaser.GameObjects.Text;
     private livesText!: Phaser.GameObjects.Text;
@@ -140,6 +146,8 @@ export class Game extends Phaser.Scene {
         this.swimmerY = 0;
         this.invuln = 0;
         this.patternCount = 0;
+        this.nearCombo = 0;
+        this.slowmo = 0;
         this.trailTimer = 0;
         this.nextSpawn = 460;
         this.bandTimer = Phaser.Math.FloatBetween(4, 6);
@@ -234,8 +242,12 @@ export class Game extends Phaser.Scene {
         if (!this.roundActive) {
             return;
         }
-        const dt = Math.min(deltaMs, 50) / 1000;
-        this.elapsed += dt;
+        const raw = Math.min(deltaMs, 50) / 1000;
+        this.elapsed += raw;
+        if (this.slowmo > 0) {
+            this.slowmo = Math.max(0, this.slowmo - raw);
+        }
+        const dt = raw * (this.slowmo > 0 ? 0.45 : 1);
         const diff = this.difficulty();
         this.worldSpeed = lerp(GAME.speedStart, GAME.speedMax, diff) * this.biome.speedMul;
 
@@ -399,7 +411,7 @@ export class Game extends Phaser.Scene {
                 .setDepth(4);
         }
 
-        this.gates.push({ top, bottom, x });
+        this.gates.push({ top, bottom, x, gapTop: gateTop, gapBottom: gateBottom, checked: false });
     }
 
     private spawnJelly(): void {
@@ -422,7 +434,7 @@ export class Game extends Phaser.Scene {
         });
 
         const drift = Phaser.Math.Between(-1, 1) * (50 + 90 * d) * this.biome.jellyMul;
-        this.jellies.push({ obj, x, y, r, drift });
+        this.jellies.push({ obj, x, y, r, drift, checked: false });
     }
 
     private spawnTreasure(): void {
@@ -463,6 +475,13 @@ export class Game extends Phaser.Scene {
             if (g.bottom) {
                 g.bottom.x = g.x;
             }
+            if (!g.checked && g.x < this.swimmerX) {
+                g.checked = true;
+                const clearance = Math.min(this.swimmerY - g.gapTop, g.gapBottom - this.swimmerY);
+                if (clearance >= this.swimmerRadius + 1 && clearance < GAME.nearMissPx) {
+                    this.nearMiss();
+                }
+            }
             if (g.x < -220) {
                 g.top?.destroy();
                 g.bottom?.destroy();
@@ -482,6 +501,14 @@ export class Game extends Phaser.Scene {
                 j.drift = -Math.abs(j.drift);
             }
             j.obj.setPosition(j.x, j.y);
+            if (!j.checked && j.x < this.swimmerX) {
+                j.checked = true;
+                const gap = Math.abs(this.swimmerY - j.y);
+                const contact = this.swimmerRadius + j.r * 0.85;
+                if (gap >= contact && gap < j.r + GAME.nearMissPx) {
+                    this.nearMiss();
+                }
+            }
             if (j.x < -90) {
                 j.obj.destroy();
                 this.jellies.splice(i, 1);
@@ -561,8 +588,34 @@ export class Game extends Phaser.Scene {
         }
     }
 
+    private nearMiss(): void {
+        this.nearCombo++;
+        this.score += GAME.nearMissScore + Math.min(3, Math.floor(this.nearCombo / 3));
+        this.slowmo = GAME.nearMissSlowmo;
+        sfx.whoosh();
+
+        const ring = this.add
+            .circle(this.swimmerX, this.swimmerY, 22, 0xffffff, 0)
+            .setStrokeStyle(3, 0xffffff, 0.9)
+            .setDepth(7);
+        this.tweens.add({ targets: ring, scale: 2.6, alpha: 0, duration: 320, onComplete: () => ring.destroy() });
+
+        const label = this.add
+            .text(this.swimmerX + 26, this.swimmerY - 26, this.nearCombo > 1 ? `CLOSE x${this.nearCombo}` : 'CLOSE!', {
+                fontFamily: 'Arial Black, Arial, sans-serif',
+                fontSize: '16px',
+                color: '#ffffff',
+                stroke: '#000000',
+                strokeThickness: 4
+            })
+            .setOrigin(0, 0.5)
+            .setDepth(9);
+        this.tweens.add({ targets: label, y: label.y - 28, alpha: 0, duration: 620, onComplete: () => label.destroy() });
+    }
+
     private hit(): void {
         this.lives--;
+        this.nearCombo = 0;
         this.invuln = 1.6;
         this.oxygen = Math.max(this.oxygen, 55);
         sfx.fail();

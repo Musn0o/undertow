@@ -9,6 +9,7 @@ import { GameOver } from './scenes/GameOver';
 import { Shop } from './scenes/Shop';
 import { Areas } from './scenes/Areas';
 import { Wheel } from './scenes/Wheel';
+import { Missions } from './scenes/Missions';
 
 // The SDK script tag is `async`, so wait (briefly) for it before booting the
 // game. If it never arrives we proceed anyway and run as a normal web game.
@@ -47,7 +48,7 @@ void waitForSdk().then(() => {
                 antialias: true,
                 roundPixels: false
             },
-            scene: [Boot, Preloader, MainMenu, Game, GameOver, Shop, Areas, Wheel]
+            scene: [Boot, Preloader, MainMenu, Game, GameOver, Shop, Areas, Wheel, Missions]
         });
     });
 });

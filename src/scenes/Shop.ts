@@ -12,12 +12,19 @@ export class Shop extends Phaser.Scene {
     private coinText!: Phaser.GameObjects.Text;
     private backButton!: UIButton;
     private statusText!: Phaser.GameObjects.Text;
+    private prevButton!: UIButton;
+    private nextButton!: UIButton;
+    private pageText!: Phaser.GameObjects.Text;
+
+    private page = 0;
+    private totalPages = 1;
 
     constructor() {
         super('Shop');
     }
 
     create(): void {
+        this.page = 0;
         this.cameras.main.setBackgroundColor(GAME.background);
 
         this.titleText = this.add
@@ -60,6 +67,21 @@ export class Shop extends Phaser.Scene {
 
         this.cards = this.add.container(0, 0).setDepth(3);
 
+        this.prevButton = new UIButton(this, 0, 0, '<', GAME.backgroundAccent, () => this.changePage(-1), {
+            width: 54,
+            height: 44,
+            fontSize: 22
+        });
+        this.nextButton = new UIButton(this, 0, 0, '>', GAME.backgroundAccent, () => this.changePage(1), {
+            width: 54,
+            height: 44,
+            fontSize: 22
+        });
+        this.pageText = this.add
+            .text(0, 0, '', { fontFamily: 'Arial Black, Arial, sans-serif', fontSize: '18px', color: '#9aa4c7' })
+            .setOrigin(0.5)
+            .setDepth(5);
+
         this.refreshCoins();
         this.layout();
         this.scale.on('resize', this.layout, this);
@@ -77,6 +99,16 @@ export class Shop extends Phaser.Scene {
         this.coinText.setText(`${Profile.profile.coins}`);
     }
 
+    private changePage(delta: number): void {
+        const target = Phaser.Math.Clamp(this.page + delta, 0, this.totalPages - 1);
+        if (target === this.page) {
+            return;
+        }
+        sfx.click();
+        this.page = target;
+        this.layout();
+    }
+
     private flash(message: string): void {
         this.statusText.setText(message);
         this.statusText.setAlpha(1);
@@ -85,37 +117,55 @@ export class Shop extends Phaser.Scene {
 
     private layout(): void {
         const w = this.scale.width;
+        const h = this.scale.height;
         const cx = w / 2;
 
         this.titleText.setPosition(cx, 44);
         this.backButton.setPosition(70, 40);
         this.coinIcon.setPosition(w - 92, 40);
         this.coinText.setPosition(w - 72, 40);
-        this.statusText.setPosition(cx, 92);
+        this.statusText.setPosition(cx, 90);
 
-        this.rebuild(w);
+        this.rebuild(w, h);
     }
 
-    private rebuild(w: number): void {
+    private rebuild(w: number, h: number): void {
         this.cards.removeAll(true);
 
         const padding = 18;
         const gap = 14;
         const cols = w < 520 ? 2 : 3;
         const cardW = Math.min(200, (w - padding * 2 - gap * (cols - 1)) / cols);
-        const cardH = Math.min(cardW * 0.95, 180);
+        const cardH = Math.min(cardW * 0.95, 176);
+        const gridTop = 142;
+        const gridBottom = h - 78;
+        const rows = Math.max(1, Math.floor((gridBottom - gridTop + gap) / (cardH + gap)));
+        const perPage = Math.max(cols, cols * rows);
+        this.totalPages = Math.max(1, Math.ceil(SKINS.length / perPage));
+        this.page = Phaser.Math.Clamp(this.page, 0, this.totalPages - 1);
+
+        const visible = SKINS.slice(this.page * perPage, this.page * perPage + perPage);
         const gridW = cols * cardW + (cols - 1) * gap;
         const startX = (w - gridW) / 2 + cardW / 2;
-        const startY = 160;
+        const startY = gridTop + cardH / 2;
         const rowH = cardH + gap;
 
-        SKINS.forEach((skin, index) => {
+        visible.forEach((skin, index) => {
             const col = index % cols;
             const row = Math.floor(index / cols);
             const x = startX + col * (cardW + gap);
-            const y = startY + row * rowH + cardH / 2;
+            const y = startY + row * rowH;
             this.cards.add(this.makeCard(x, y, cardW, cardH, skin));
         });
+
+        const showPager = this.totalPages > 1;
+        this.prevButton.setVisible(showPager).setEnabled(this.page > 0);
+        this.nextButton.setVisible(showPager).setEnabled(this.page < this.totalPages - 1);
+        this.pageText.setVisible(showPager);
+        this.pageText.setText(`${this.page + 1} / ${this.totalPages}`);
+        this.prevButton.setPosition(w / 2 - 80, h - 44);
+        this.nextButton.setPosition(w / 2 + 80, h - 44);
+        this.pageText.setPosition(w / 2, h - 44);
     }
 
     private makeCard(x: number, y: number, w: number, h: number, skin: SkinDef): Phaser.GameObjects.Container {
@@ -158,7 +208,7 @@ export class Shop extends Phaser.Scene {
         if (owned) {
             card.add(
                 this.add
-                    .text(0, h * 0.3, status, {
+                    .text(0, h * 0.32, status, {
                         fontFamily: 'Arial Black, Arial, sans-serif',
                         fontSize: '18px',
                         color: statusColor
@@ -167,14 +217,13 @@ export class Shop extends Phaser.Scene {
             );
         } else {
             const price = this.add
-                .text(6, h * 0.3, status, {
+                .text(14, h * 0.32, status, {
                     fontFamily: 'Arial Black, Arial, sans-serif',
                     fontSize: '18px',
                     color: statusColor
                 })
                 .setOrigin(0, 0.5);
-            const coin = makeCoin(this, 6 - 8, h * 0.3, 9);
-            price.setX(6 + 8);
+            const coin = makeCoin(this, -6, h * 0.32, 9);
             card.add([coin, price]);
         }
 
@@ -187,7 +236,6 @@ export class Shop extends Phaser.Scene {
                 Profile.equipSkin(skin.id);
                 sfx.success();
                 this.flash(`${skin.name} equipped`);
-                this.refreshCoins();
                 this.layout();
                 return;
             }

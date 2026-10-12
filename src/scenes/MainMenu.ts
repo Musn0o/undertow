@@ -23,7 +23,9 @@ export class MainMenu extends Phaser.Scene {
     private shopButton!: UIButton;
     private areasButton!: UIButton;
     private wheelButton!: UIButton;
+    private missionsButton!: UIButton;
     private wheelBadge!: Phaser.GameObjects.Container;
+    private missionsBadge!: Phaser.GameObjects.Container;
     private hint!: Phaser.GameObjects.Text;
 
     constructor() {
@@ -98,39 +100,40 @@ export class MainMenu extends Phaser.Scene {
             .setDepth(5);
 
         const w = this.scale.width;
-        const rowW = Phaser.Math.Clamp((w - 60) / 3, 92, 150);
+        const rowW = Phaser.Math.Clamp((w - 60) / 2, 120, 190);
 
         this.playButton = new UIButton(this, 0, 0, 'PLAY', GAME.colors[1], () => this.startGame(), {
             width: Phaser.Math.Clamp(w * 0.62, 220, 340),
-            height: 76,
-            fontSize: 34
+            height: 70,
+            fontSize: 32
         });
 
         this.shopButton = new UIButton(this, 0, 0, 'SHOP', GAME.colors[0], () => this.open('Shop'), {
             width: rowW,
-            height: 60,
+            height: 58,
             fontSize: 22
         });
 
         this.areasButton = new UIButton(this, 0, 0, 'AREAS', GAME.colors[3], () => this.open('Areas'), {
             width: rowW,
-            height: 60,
+            height: 58,
             fontSize: 22
         });
 
         this.wheelButton = new UIButton(this, 0, 0, 'WHEEL', GAME.colors[2], () => this.open('Wheel'), {
             width: rowW,
-            height: 60,
+            height: 58,
             fontSize: 22
         });
 
-        this.wheelBadge = this.add.container(0, 0).setDepth(6);
-        this.wheelBadge.add(this.add.circle(0, 0, 12, 0xff4d6d).setStrokeStyle(2, 0xffffff, 0.9));
-        this.wheelBadge.add(
-            this.add
-                .text(0, 0, '!', { fontFamily: 'Arial Black, Arial, sans-serif', fontSize: '16px', color: '#ffffff' })
-                .setOrigin(0.5)
-        );
+        this.missionsButton = new UIButton(this, 0, 0, 'MISSIONS', GAME.colors[0], () => this.open('Missions'), {
+            width: rowW,
+            height: 58,
+            fontSize: 22
+        });
+
+        this.wheelBadge = this.makeBadge();
+        this.missionsBadge = this.makeBadge();
 
         this.hint = this.add
             .text(0, 0, 'Grab bubbles to breathe · pearls give coins', {
@@ -151,18 +154,6 @@ export class MainMenu extends Phaser.Scene {
         this.events.once('shutdown', () => this.scale.off('resize', this.layout, this));
 
         YouTubePlayables.gameReady();
-
-        // Dev-only shortcuts: #play, #shop, #areas, #wheel jump straight in.
-        const hash = window.location.hash;
-        if (hash === '#play') {
-            this.scene.start('Game');
-        } else if (hash === '#shop') {
-            this.scene.start('Shop');
-        } else if (hash === '#areas') {
-            this.scene.start('Areas');
-        } else if (hash === '#wheel') {
-            this.scene.start('Wheel');
-        }
     }
 
     private refreshProfile(): void {
@@ -171,6 +162,18 @@ export class MainMenu extends Phaser.Scene {
         this.bestText.setText(`BEST ${p.bestScore}`);
         this.levelText.setText(`LEVEL ${Profile.level}`);
         this.wheelBadge.setVisible(Profile.canSpin());
+        this.missionsBadge.setVisible(Profile.hasClaimableMissions());
+    }
+
+    private makeBadge(): Phaser.GameObjects.Container {
+        const badge = this.add.container(0, 0).setDepth(6);
+        badge.add(this.add.circle(0, 0, 12, 0xff4d6d).setStrokeStyle(2, 0xffffff, 0.9));
+        badge.add(
+            this.add
+                .text(0, 0, '!', { fontFamily: 'Arial Black, Arial, sans-serif', fontSize: '16px', color: '#ffffff' })
+                .setOrigin(0.5)
+        );
+        return badge;
     }
 
     private startGame(): void {
@@ -218,14 +221,19 @@ export class MainMenu extends Phaser.Scene {
         this.coinText.setPosition(w - 74, 30);
         this.bestText.setPosition(20, 30);
 
-        this.playButton.setPosition(cx, h * 0.60);
+        this.playButton.setPosition(cx, h * 0.55);
 
-        const rowY = h * 0.745;
-        const col = Phaser.Math.Clamp(w / 3, 100, 190);
-        this.shopButton.setPosition(cx - col, rowY);
-        this.areasButton.setPosition(cx, rowY);
-        this.wheelButton.setPosition(cx + col, rowY);
-        this.wheelBadge.setPosition(cx + col + this.wheelButton.buttonW / 2 - 6, rowY - 26);
+        const rowAY = h * 0.71;
+        const rowBY = rowAY + Phaser.Math.Clamp(h * 0.085, 58, 72);
+        const col = Phaser.Math.Clamp(w * 0.24, 76, 112);
+
+        this.shopButton.setPosition(cx - col, rowAY);
+        this.areasButton.setPosition(cx + col, rowAY);
+        this.wheelButton.setPosition(cx - col, rowBY);
+        this.missionsButton.setPosition(cx + col, rowBY);
+
+        this.wheelBadge.setPosition(cx - col + this.wheelButton.buttonW / 2 - 6, rowAY - 24);
+        this.missionsBadge.setPosition(cx + col + this.missionsButton.buttonW / 2 - 6, rowBY - 24);
 
         this.hint.setPosition(cx, h - 22);
     }
