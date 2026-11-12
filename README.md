@@ -1,5 +1,11 @@
 # Undertow
 
+**Endless underwater arcade game for YouTube Playables** — TypeScript, Phaser 3, Vite.
+
+[**Play the live demo**](https://musn0o.github.io/undertow/)
+
+![Undertow gameplay](docs/undertow.png)
+
 An endless underwater arcade game built for YouTube Playables.
 
 Hold to rise, release to sink. Weave through coral gates and drifting
@@ -21,6 +27,40 @@ skins, complete daily missions, and spin the lucky wheel.
 - Rewarded-ad continue and double-coins; interstitial at natural breakpoints
 - Cloud saves inside Playables (localStorage fallback on the web demo)
 - Fully responsive; touch, mouse, and keyboard input
+
+## Projektüberblick (DE)
+
+Undertow ist ein vollständig spielbares Browser-Arcade-Spiel im Stil eines
+Endless-Runners. Der Spieler taucht durch Korallentore, weicht Quallen aus und
+sammelt Luftblasen, bevor der Sauerstoff ausgeht. Das Projekt umfasst eine
+komplette Spielschleife mit Fortschritt, Shop, täglichen Missionen, Werbe-
+Integration und Cloud-Speicherung für YouTube Playables.
+
+**Technischer Fokus:** Spielzustände und Szenen mit Phaser 3, TypeScript-
+Typisierung, prozedurale Grafik und Audio zur Laufzeit, responsive Steuerung
+sowie die Anbindung an das YouTube-Playables-SDK.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    B[Boot] --> P[Preloader]
+    P --> M[Main Menu]
+    M --> G[Game Scene]
+    G --> O[Game Over]
+    M --> S[Shop]
+    M --> A[Areas]
+    M --> D[Missions]
+    M --> W[Lucky Wheel]
+    G --> YT[YouTube Playables SDK]
+    S --> YT
+    A --> YT
+```
+
+The game is organised into Phaser scenes (`src/scenes`), reusable UI
+components (`src/ui`), game systems (`src/systems`) and a thin Playables
+adapter (`src/playables`). All artwork is generated at runtime and all audio is
+synthesised with the Web Audio API.
 
 ## Tech
 
